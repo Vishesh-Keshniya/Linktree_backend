@@ -31,7 +31,18 @@ mongoose
 
 app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 
+app.use(express.static(path.join(__dirname, "dist"), {
+  setHeaders: (res, path) => {
+    if (path.endsWith(".js")) {
+      res.setHeader("Content-Type", "application/javascript");
+    }
+  }
+}));
 
+// Handle React Routes (SPA)
+app.get("*", (req, res) => {
+  res.sendFile(path.join(__dirname, "dist", "index.html"));
+});
 
 const getDeviceType = (device) => {
   if (!device || !device.type) return "Others"; // Ensure device exists
