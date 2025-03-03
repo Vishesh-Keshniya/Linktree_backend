@@ -2,52 +2,79 @@ const mongoose = require("mongoose");
 
 const userSchema = new mongoose.Schema(
   {
-    firstName: {
-      type: String,
-      required: true,
-      trim: true,
+    firstName: { type: String, required: true, trim: true },
+    lastName: { type: String, required: true, trim: true },
+    email: { type: String, required: true, unique: true, trim: true, lowercase: true },
+    password: { type: String, required: true },
+    username: { type: String, unique: true, sparse: true, lowercase: true, trim: true },
+    profileTitle: { type: String, trim: true },
+    bio: { type: String, trim: true },
+
+    image: { type: String, default: "./uploads/ava.png" },
+
+    settings: {
+      layout: { type: String, default: "stack" },
+      shadowStyle: { type: String, default: "soft" },
+      borderStyle: { type: String, default: "rounded" },
+      buttonStyle: { type: String, default: "solid" },
+      linkBgColor: { type: String, default: "#D9D9D9" },
+      linkFontColor: { type: String, default: "#F5F5F3" },
+      phoneFontColor: { type: String, default: "#000000" },
+      selectedFont: { type: String, default: "DM Sans" },
+      selectedTheme: { type: String, default: "" },
+      selectedLiTheme: { type: String, default: "" },
+      phoneHeaderColor: { type: String, default: "#000000" },
     },
-    lastName: {
+
+    linkTree: {
       type: String,
-      required: true,
-      trim: true,
-    },
-    email: {
-      type: String,
-      required: true,
       unique: true,
-      trim: true,
-      lowercase: true,
+      sparse: true,
+      default: function () {
+        return new mongoose.Types.ObjectId().toString();
+      },
     },
-    password: {
-      type: String,
-      required: true,
+
+    addLinks: [
+      {
+        title: String,
+        url: String,
+        tag: String,
+        clicks: { type: Number, default: 0 },
+        icon: String,
+      },
+    ],
+    addShop: [
+      {
+        title: String,
+        url: String,
+        tag: String,
+        clicks: { type: Number, default: 0 },
+        icon: String,
+      },
+    ],
+    totalshopclicks: { type: Number, default: 0 },
+    totallinkclicks: { type: Number, default: 0 },
+    cta: { type: Number, default: 0 },
+
+    totaldatewiseclicks: { type: Object, default: {} },
+
+    monthlyClicks: {
+      type: Object,
+      default: {},
     },
-    username: {
-      type: String,
-      unique: true,
-      sparse: true, // ✅ Allows multiple null values until username is set
-      lowercase: true,
-      trim: true,
+
+    traffic: {
+      Linux: { type: Number, default: 0 },
+      Mac: { type: Number, default: 0 },
+      iOS: { type: Number, default: 0 },
+      Windows: { type: Number, default: 0 },
+      Android: { type: Number, default: 0 },
+      Others: { type: Number, default: 0 },
     },
-    category: {
-      type: String,
-      required: false, // ✅ Category is optional initially
-      trim: true,
-    }
   },
-  {
-    timestamps: true,
-  }
+  { timestamps: true }
 );
-
-// Virtual field for fullName
-userSchema.virtual("fullName").get(function () {
-  return `${this.firstName} ${this.lastName}`;
-});
-
-userSchema.set("toJSON", { virtuals: true });
-userSchema.set("toObject", { virtuals: true });
 
 const User = mongoose.model("User", userSchema);
 module.exports = User;
