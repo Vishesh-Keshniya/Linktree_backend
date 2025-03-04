@@ -5,60 +5,47 @@ const device = require("express-device");
 const cors = require("cors");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
-const User = require("./models/User"); // Import User model
+const User = require("./models/User"); 
 const cloudinary = require("./cloudinary");
 const multer = require("multer");
-const useragent = require("useragent"); // Import useragent package
+const useragent = require("useragent"); 
 const uaParser = require("ua-parser-js");
 const path = require("path");
 const app = express();
-app.use(device.capture()); // ✅ Must be placed BEFORE routes
+app.use(device.capture()); 
 app.use(cors());
 app.use(express.json());
 
-const JWT_SECRET = "your_secret_key"; // Use a secure secret key
+const JWT_SECRET = "your_secret_key"; 
 
-const storage = multer.memoryStorage(); // Stores image in memory
+const storage = multer.memoryStorage(); 
 const upload = multer({ storage });
 
-// 🔹 Connect to MongoDB
 mongoose
   .connect(process.env.MONGO_URI, { useNewUrlParser: true, useUnifiedTopology: true })
   .then(() => console.log("✅ Connected to MongoDB"))
   .catch((err) => console.error("❌ MongoDB Connection Error:", err));
 
-// 🔹 User Registration Route (Without Username)
-
 app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 
-
-
 const getDeviceType = (device) => {
-  if (!device || !device.type) return "Others"; // Ensure device exists
+  if (!device || !device.type) return "Others"; 
 
   switch (device.type) {
     case "desktop":
-      return "Windows"; // Assume desktop means Windows
+      return "Windows"; 
     case "tablet":
       return "Tablet";
     case "phone":
-      return "Mobile"; // Generic mobile category
+      return "Mobile"; 
     default:
       return "Others";
   }
 };
 
-
-
-
-
-
-
-
-// API to track login and update device count
 app.post("/api/track-login", async (req, res) => {
   try {
-    console.log("📢 Device Info:", req.device); // Debugging
+    console.log("📢 Device Info:", req.device); 
 
     const { username } = req.body;
     if (!username) {
@@ -72,20 +59,17 @@ app.post("/api/track-login", async (req, res) => {
       return res.status(404).json({ success: false, message: "User not found" });
     }
 
-    // Get the device type
     const deviceType = getDeviceType(req.device);
 
-    // Step 1: Fix `traffic` if it's an array or missing
     if (!user.traffic || Array.isArray(user.traffic)) {
       console.warn(`⚠️ Fixing traffic field for user: ${username}`);
       await User.updateOne(
         { _id: user._id },
         { $set: { traffic: { Windows: 0, Mac: 0, Linux: 0, iOS: 0, Android: 0, Tablet: 0, Mobile: 0, Others: 0 } } }
       );
-      user = await User.findOne({ username }); // Refresh user data
+      user = await User.findOne({ username }); 
     }
 
-    // Step 2: Ensure deviceType exists before incrementing
     if (!user.traffic[deviceType]) {
       await User.updateOne(
         { _id: user._id },
@@ -93,7 +77,6 @@ app.post("/api/track-login", async (req, res) => {
       );
     }
 
-    // Step 3: Increment the device count
     await User.updateOne(
       { _id: user._id },
       { $inc: { [`traffic.${deviceType}`]: 1 } }
@@ -111,14 +94,11 @@ app.post("/api/signup", async (req, res) => {
   try {
     const { firstName, lastName, email, password } = req.body;
 
-    // Check if email already exists
     const existingUser = await User.findOne({ email });
     if (existingUser) return res.status(400).json({ success: false, message: "Email already exists" });
 
-    // Hash Password
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    // Create User (without username)
     const newUser = new User({ firstName, lastName, email, password: hashedPassword });
     await newUser.save();
 
@@ -129,20 +109,16 @@ app.post("/api/signup", async (req, res) => {
   }
 });
 
-// 🔹 User Login Route
 app.post("/api/login", async (req, res) => {
   try {
     const { username, password } = req.body;
 
-    // Check if user exists by username
     const user = await User.findOne({ username });
     if (!user) return res.status(400).json({ success: false, message: "User not found" });
 
-    // Check password
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) return res.status(400).json({ success: false, message: "Invalid credentials" });
 
-    // Generate JWT token
     const token = jwt.sign({ userId: user._id }, JWT_SECRET, { expiresIn: "1h" });
 
     res.json({ success: true, token, userId: user._id, username: user.username });
@@ -152,8 +128,6 @@ app.post("/api/login", async (req, res) => {
   }
 });
 
-
-// 🔹 Set Username Route (After Login)
 app.post("/api/update-details", async (req, res) => {
   try {
     const { userId, username, category } = req.body;
@@ -181,10 +155,10 @@ app.post("/api/update-details", async (req, res) => {
 
 app.get("/api/user-details", async (req, res) => {
   try {
-    const token = req.headers.authorization?.split(" ")[1]; // Get token from headers
+    const token = req.headers.authorization?.split(" ")[1]; 
     if (!token) return res.status(401).json({ success: false, message: "Unauthorized" });
 
-    const decoded = jwt.verify(token, JWT_SECRET); // Decode JWT
+    const decoded = jwt.verify(token, JWT_SECRET); 
     const user = await User.findById(decoded.userId).select("firstName lastName email");
 
     if (!user) return res.status(404).json({ success: false, message: "User not found" });
@@ -196,31 +170,20 @@ app.get("/api/user-details", async (req, res) => {
   }
 });
 
-
-
-
-
-
 const authenticateToken = (req, res, next) => {
-  const token = req.headers.authorization?.split(" ")[1]; // Get token from headers
+  const token = req.headers.authorization?.split(" ")[1]; 
   if (!token) return res.status(401).json({ success: false, message: "Unauthorized" });
 
   jwt.verify(token, JWT_SECRET, (err, decoded) => {
     if (err) return res.status(403).json({ success: false, message: "Invalid token" });
-    req.userId = decoded.userId; // Attach userId to the request object
+    req.userId = decoded.userId; 
     next();
   });
 };
 
-
-
-
-
-
-
 app.get("/api/user", authenticateToken, async (req, res) => {
   try {
-    const user = await User.findById(req.userId).select("-password"); // Exclude password from response
+    const user = await User.findById(req.userId).select("-password"); 
     if (!user) return res.status(404).json({ success: false, message: "User not found" });
 
     res.json({ success: true, user });
@@ -230,11 +193,6 @@ app.get("/api/user", authenticateToken, async (req, res) => {
   }
 });
 
-
-
-
-
-// 🔹 Add Link or Shop Entry
 app.post("/api/add-entry", authenticateToken, async (req, res) => {
   try {
     const { title, url, type, tag } = req.body;
@@ -258,8 +216,8 @@ app.post("/api/add-entry", authenticateToken, async (req, res) => {
       url,
       tag,
       icon: iconMap[tag] || "default.png",
-      _id: new mongoose.Types.ObjectId(), // ✅ Ensure a unique ID is generated
-      clicks: 0, // ✅ Initialize clicks count
+      _id: new mongoose.Types.ObjectId(), 
+      clicks: 0, 
     };
 
     const updateField = type === "link" ? "addLinks" : "addShop";
@@ -272,7 +230,7 @@ app.post("/api/add-entry", authenticateToken, async (req, res) => {
     res.status(201).json({ 
       success: true, 
       message: "Entry added successfully", 
-      entry: newEntry // ✅ Send back the new entry with its ID
+      entry: newEntry 
     });
 
   } catch (error) {
@@ -281,10 +239,6 @@ app.post("/api/add-entry", authenticateToken, async (req, res) => {
   }
 });
 
-
-
-
-// Middleware to verify JWT
 const verifyToken = (req, res, next) => {
   const token = req.header("Authorization")?.split(" ")[1];
   if (!token) return res.status(401).json({ success: false, message: "Access Denied" });
@@ -298,7 +252,6 @@ const verifyToken = (req, res, next) => {
   }
 };
 
-// ✅ **Update Link (PUT)**
 app.put("/api/update-link/:id", verifyToken, async (req, res) => {
   const { tag, url } = req.body;
   const linkId = req.params.id;
@@ -313,7 +266,6 @@ app.put("/api/update-link/:id", verifyToken, async (req, res) => {
 
     let updated = false;
 
-    // 🔥 Search inside addLinks array
     user.addLinks.forEach((link) => {
       if (link._id.toString() === linkId) {
         link.tag = tag;
@@ -335,7 +287,6 @@ app.put("/api/update-link/:id", verifyToken, async (req, res) => {
   }
 });
 
-// ✅ **Delete Link (DELETE)**
 app.delete("/api/delete-link/:id", verifyToken, async (req, res) => {
   const linkId = req.params.id;
 
@@ -358,14 +309,12 @@ app.delete("/api/delete-link/:id", verifyToken, async (req, res) => {
   }
 });
 
-
 app.put("/api/edit-entry/:id", async (req, res) => {
   try {
     const { id } = req.params;
-    const { title, url, tag, icon } = req.body; // Include icon
+    const { title, url, tag, icon } = req.body; 
     const token = req.headers.authorization.split(" ")[1];
 
-    // Verify user from token
     const decoded = jwt.verify(token, "your_secret_key");
     const user = await User.findById(decoded.userId);
 
@@ -373,12 +322,10 @@ app.put("/api/edit-entry/:id", async (req, res) => {
 
     let updated = false;
 
-    // Update addLinks array
     user.addLinks = user.addLinks.map(link =>
       link._id.toString() === id ? { ...link, title, url, tag, icon } : link
     );
 
-    // Update addShop array
     user.addShop = user.addShop.map(shop =>
       shop._id.toString() === id ? { ...shop, title, url, tag, icon } : shop
     );
@@ -391,8 +338,6 @@ app.put("/api/edit-entry/:id", async (req, res) => {
   }
 });
 
-// DELETE endpoint to delete a link by ID
-// ✅ **Delete Link (DELETE)**
 app.delete("/api/entries/:id", authenticateToken, async (req, res) => {
   try {
     const { id } = req.params;
@@ -408,13 +353,11 @@ app.delete("/api/entries/:id", authenticateToken, async (req, res) => {
 
     const updateField = type === "link" ? "addLinks" : "addShop";
 
-    // ✅ Check if user exists first
     const user = await User.findById(req.userId);
     if (!user) {
       return res.status(404).json({ success: false, message: "User not found" });
     }
 
-    // ✅ Use `$pull` to remove entry from correct array
     const updatedUser = await User.findByIdAndUpdate(
       req.userId,
       { $pull: { [updateField]: { _id: id } } },
@@ -433,7 +376,6 @@ app.delete("/api/entries/:id", authenticateToken, async (req, res) => {
   }
 });
 
-
 app.post("/api/increment-clicks", authenticateToken, async (req, res) => {
   try {
     const { linkId, type } = req.body;
@@ -448,10 +390,9 @@ app.post("/api/increment-clicks", authenticateToken, async (req, res) => {
 
     const updateField = type === "link" ? "addLinks" : "addShop";
 
-    // ✅ Find the user and update the clicks for the specific link
     const user = await User.findOneAndUpdate(
       { _id: req.userId, [`${updateField}._id`]: linkId },
-      { $inc: { [`${updateField}.$.clicks`]: 1 } }, // ✅ Increment clicks
+      { $inc: { [`${updateField}.$.clicks`]: 1 } }, 
       { new: true }
     );
 
@@ -468,21 +409,20 @@ app.post("/api/increment-clicks", authenticateToken, async (req, res) => {
 
 app.get("/api/user-links", authenticateToken, async (req, res) => {
   try {
-    // 🔹 Ensure user exists
+
     const user = await User.findById(req.userId).select("addLinks");
     if (!user) {
       return res.status(404).json({ success: false, message: "User not found" });
     }
 
     if (!user.addLinks || user.addLinks.length === 0) {
-      return res.json({ success: true, links: [] }); // Return empty array instead of error
+      return res.json({ success: true, links: [] }); 
     }
 
-    // Map through the links and include the icon field
     const links = user.addLinks.map((link) => ({
       url: link.url,
       title: link.title || "Untitled",
-      icon: link.icon || "default-icon.png", // Use a default icon if none is provided
+      icon: link.icon || "default-icon.png", 
     }));
 
     res.json({ success: true, links });
@@ -492,33 +432,30 @@ app.get("/api/user-links", authenticateToken, async (req, res) => {
   }
 });
 
-
 app.get("/api/user-links-shop", authenticateToken, async (req, res) => {
   try {
-    // 🔹 Ensure user exists
-    const user = await User.findById(req.userId).select("addShop"); // Select addShop instead of addLinks
+
+    const user = await User.findById(req.userId).select("addShop"); 
     if (!user) {
       return res.status(404).json({ success: false, message: "User not found" });
     }
 
     if (!user.addShop || user.addShop.length === 0) {
-      return res.json({ success: true, shopLinks: [] }); // Fix response key
+      return res.json({ success: true, shopLinks: [] }); 
     }
 
-    // Map through the shop links and include the icon field
     const shopLinks = user.addShop.map((link) => ({
       url: link.url,
       title: link.title || "Untitled",
       icon: link.icon || "default-icon.png",
     }));
 
-    res.json({ success: true, shopLinks }); // Fix response key
+    res.json({ success: true, shopLinks }); 
   } catch (error) {
     console.error("Error fetching shop links:", error);
     res.status(500).json({ success: false, message: "Server Error", error: error.message });
   }
 });
-
 
 app.put("/api/update-profile-image", authenticateToken, async (req, res) => {
   try {
@@ -536,18 +473,15 @@ app.put("/api/update-profile-image", authenticateToken, async (req, res) => {
   }
 });
 
-
-
-// 🔹 Upload Profile Image API (Save Image in MongoDB)
 app.post("/api/upload-profile-image", authenticateToken, upload.single("image"), async (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ success: false, message: "No file uploaded" });
 
-    const imageBase64 = req.file.buffer.toString("base64"); // Convert image to Base64
+    const imageBase64 = req.file.buffer.toString("base64"); 
 
     const updatedUser = await User.findByIdAndUpdate(
       req.userId,
-      { image: `data:${req.file.mimetype};base64,${imageBase64}` }, // Store Base64 image
+      { image: `data:${req.file.mimetype};base64,${imageBase64}` }, 
       { new: true }
     );
 
@@ -560,7 +494,6 @@ app.post("/api/upload-profile-image", authenticateToken, upload.single("image"),
   }
 });
 
-
 app.post("/api/remove-profile-image", authenticateToken, async (req, res) => {
   try {
     const user = await User.findById(req.userId);
@@ -568,7 +501,6 @@ app.post("/api/remove-profile-image", authenticateToken, async (req, res) => {
       return res.status(404).json({ success: false, message: "User not found" });
     }
 
-    // ✅ Set image field to default
     user.image = "ava.png";
     await user.save();
 
@@ -578,10 +510,6 @@ app.post("/api/remove-profile-image", authenticateToken, async (req, res) => {
     res.status(500).json({ success: false, message: "Server error" });
   }
 });
-
-
-
-
 
 app.post("/api/update-settings", authenticateToken, async (req, res) => {
   try {
@@ -593,7 +521,6 @@ app.post("/api/update-settings", authenticateToken, async (req, res) => {
       return res.status(401).json({ success: false, message: "Unauthorized request" });
     }
 
-    // Fetch user before updating for debugging
     const userBefore = await User.findById(req.userId);
     console.log("Before Update:", userBefore);
 
@@ -624,14 +551,13 @@ app.post("/api/update-settings", authenticateToken, async (req, res) => {
   }
 });
 
-
 const auth = (req, res, next) => {
-  const token = req.headers.authorization?.split(" ")[1]; // Get token from headers
+  const token = req.headers.authorization?.split(" ")[1]; 
   if (!token) return res.status(401).json({ success: false, message: "Unauthorized" });
 
   jwt.verify(token, JWT_SECRET, (err, decoded) => {
     if (err) return res.status(403).json({ success: false, message: "Invalid token" });
-    req.user = { userId: decoded.userId }; // Attach userId to req.user
+    req.user = { userId: decoded.userId }; 
     next();
   });
 };
@@ -639,33 +565,25 @@ const auth = (req, res, next) => {
 app.post("/api/save-appearance", auth, async (req, res) => {
   const { settings } = req.body;
 
-  // Validate the request body
   if (!settings) {
     return res.status(400).json({ message: "Settings are required." });
   }
 
   try {
-    const user = await User.findById(req.user.userId); // Use req.user.userId
+    const user = await User.findById(req.user.userId); 
     if (!user) {
       return res.status(404).json({ message: "User not found." });
     }
 
-    // Update user settings
     user.settings = { ...user.settings, ...settings };
     await user.save();
 
     res.json({ message: "Settings saved successfully." });
   } catch (err) {
-    console.error("Error saving settings:", err); // Log the error details
+    console.error("Error saving settings:", err); 
     res.status(400).json({ message: "Error saving settings.", error: err.message });
   }
 });
-// Appearance settings update
-
-
-
-
-
 
 app.get("/api/get-appearance", auth, async (req, res) => {
   try {
@@ -674,29 +592,24 @@ app.get("/api/get-appearance", auth, async (req, res) => {
       return res.status(404).json({ message: "User not found." });
     }
 
-    // Return the user's settings
     res.json({ settings: user.settings });
   } catch (err) {
-    console.error("Error fetching settings:", err); // Log the error details
+    console.error("Error fetching settings:", err); 
     res.status(400).json({ message: "Error fetching settings.", error: err.message });
   }
 });
-
 
 app.get("/api/public/user-data/:userId", async (req, res) => {
   try {
     const { userId } = req.params;
 
-    // Find the user in the database
     const user = await User.findById(userId).lean();
     if (!user) {
       return res.status(404).json({ success: false, message: "User not found" });
     }
 
-    // Log the user data being sent
     console.log("User Data:", user);
 
-    // Return only necessary public details
     res.json({
       success: true,
       user: {
@@ -714,24 +627,6 @@ app.get("/api/public/user-data/:userId", async (req, res) => {
   }
 });
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 app.post("/api/increment-clickss", authenticateToken, async (req, res) => {
   try {
     let { linkId, type } = req.body;
@@ -742,12 +637,11 @@ app.post("/api/increment-clickss", authenticateToken, async (req, res) => {
       return res.status(400).json({ success: false, message: "Type is required" });
     }
 
-    const today = new Date().toISOString().split("T")[0]; // Get today's date in "YYYY-MM-DD" format
-    const currentMonth = today.slice(0, 7); // Get current month in "YYYY-MM" format
+    const today = new Date().toISOString().split("T")[0]; 
+    const currentMonth = today.slice(0, 7); 
 
     const updateFields = {};
 
-    // If it's a button click (e.g., navigating between Links and Shop), update totals
     if (!linkId || linkId === "button_click") {
       if (type === "shop") {
         updateFields.totalshopclicks = 1;
@@ -755,22 +649,20 @@ app.post("/api/increment-clickss", authenticateToken, async (req, res) => {
         updateFields.totallinkclicks = 1;
       }
 
-      updateFields[`totaldatewiseclicks.${today}`] = 1; // Increment today's click count
-      updateFields[`monthlyClicks.${currentMonth}.${type}`] = 1; // Increment monthly click count for this type
+      updateFields[`totaldatewiseclicks.${today}`] = 1; 
+      updateFields[`monthlyClicks.${currentMonth}.${type}`] = 1; 
 
       await User.findByIdAndUpdate(req.userId, { $inc: updateFields }, { new: true });
 
       return res.json({ success: true, message: "Button click counted successfully" });
     }
 
-    // Validate linkId for actual link clicks
     if (!mongoose.Types.ObjectId.isValid(linkId)) {
       return res.status(400).json({ success: false, message: "Invalid link ID" });
     }
 
     const updateField = type === "link" ? "addLinks" : "addShop";
 
-    // Update clicks for the specific link or shop item
     const user = await User.findOneAndUpdate(
       { _id: req.userId, [`${updateField}._id`]: linkId },
       {
@@ -778,7 +670,7 @@ app.post("/api/increment-clickss", authenticateToken, async (req, res) => {
           [`${updateField}.$.clicks`]: 1,
           [`totaldatewiseclicks.${today}`]: 1,
           ...(type === "shop" ? { totalshopclicks: 1 } : { totallinkclicks: 1 }),
-          [`monthlyClicks.${currentMonth}.${type}`]: 1, // Increment monthly clicks for link/shop
+          [`monthlyClicks.${currentMonth}.${type}`]: 1, 
         },
       },
       { new: true }
@@ -795,16 +687,15 @@ app.post("/api/increment-clickss", authenticateToken, async (req, res) => {
   }
 });
 
-
 app.post("/api/increment-cta-click", authenticateToken, async (req, res) => {
   try {
-    const today = new Date().toISOString().split("T")[0]; // Get today's date in "YYYY-MM-DD"
-    const currentMonth = today.slice(0, 7); // Get current month in "YYYY-MM"
+    const today = new Date().toISOString().split("T")[0]; 
+    const currentMonth = today.slice(0, 7); 
 
     const updateFields = {
       cta: 1,
-      [`totaldatewiseclicks.${today}`]: 1, // Increment today's click count
-      [`monthlyClicks.${currentMonth}.cta`]: 1, // Increment monthly CTA click count
+      [`totaldatewiseclicks.${today}`]: 1, 
+      [`monthlyClicks.${currentMonth}.cta`]: 1, 
     };
 
     const user = await User.findByIdAndUpdate(req.userId, { $inc: updateFields }, { new: true });
@@ -820,12 +711,6 @@ app.post("/api/increment-cta-click", authenticateToken, async (req, res) => {
   }
 });
 
-
-
-
-
-
-
 app.get("/analytics", authenticateToken, async (req, res) => {
   try {
     const user = await User.findById(req.userId, "totallinkclicks totalshopclicks cta monthlyClicks");
@@ -833,11 +718,9 @@ app.get("/analytics", authenticateToken, async (req, res) => {
       return res.status(404).json({ success: false, message: "User not found" });
     }
 
-    // Extract the monthly clicks data from user document
     const monthlyClicks = user.monthlyClicks || {};
     const monthlyData = [];
 
-    // Loop through each month in the monthlyClicks object
     for (const [month, clicks] of Object.entries(monthlyClicks)) {
       const totalClicks = (clicks.link || 0) + (clicks.shop || 0) + (clicks.cta || 0);
       monthlyData.push({
@@ -849,7 +732,6 @@ app.get("/analytics", authenticateToken, async (req, res) => {
       });
     }
 
-    // Sort the monthly data by month (optional)
     monthlyData.sort((a, b) => new Date(a.month) - new Date(b.month));
 
     res.json({
@@ -865,19 +747,15 @@ app.get("/analytics", authenticateToken, async (req, res) => {
   }
 });
 
-
-
-
 app.get("/analytics", authenticateToken, async (req, res) => {
   try {
-    // Fetch user data with selected fields
+
     const user = await User.findById(req.userId, "totallinkclicks totalshopclicks cta monthlyClicks traffic");
-    
+
     if (!user) {
       return res.status(404).json({ success: false, message: "User not found" });
     }
 
-    // Extract and process monthly clicks data
     const monthlyClicks = user.monthlyClicks || {};
     const monthlyData = Object.entries(monthlyClicks).map(([month, clicks]) => ({
       month,
@@ -887,7 +765,6 @@ app.get("/analytics", authenticateToken, async (req, res) => {
       ctaClicks: clicks.cta || 0,
     }));
 
-    // Sort data by month (optional)
     monthlyData.sort((a, b) => new Date(a.month) - new Date(b.month));
 
     res.json({
@@ -896,7 +773,7 @@ app.get("/analytics", authenticateToken, async (req, res) => {
       totalshopclicks: user.totalshopclicks || 0,
       cta: user.cta || 0,
       monthlyClicks: monthlyData,
-      traffic: user.traffic || {}, // Include traffic data
+      traffic: user.traffic || {}, 
     });
   } catch (error) {
     console.error("Error fetching analytics:", error);
@@ -904,11 +781,9 @@ app.get("/analytics", authenticateToken, async (req, res) => {
   }
 });
 
-
-
 app.get("/traffic", authenticateToken, async (req, res) => {
   try {
-    const user = await User.findById(req.userId); // Get user data from DB
+    const user = await User.findById(req.userId); 
     if (!user) return res.status(404).json({ success: false, message: "User not found" });
 
     res.json({ success: true, traffic: user.traffic });
@@ -916,7 +791,6 @@ app.get("/traffic", authenticateToken, async (req, res) => {
     res.status(500).json({ success: false, message: "Server error", error });
   }
 });
-
 
 app.get("/site-traffic", authenticateToken, async (req, res) => {
   try {
@@ -928,7 +802,6 @@ app.get("/site-traffic", authenticateToken, async (req, res) => {
       instagramClicks = 0,
       otherClicks = 0;
 
-    // Function to categorize clicks based on `tag`
     const categorizeClicks = (links) => {
       links.forEach((link) => {
         if (link.tag.toLowerCase() === "youtube") youtubeClicks += link.clicks;
@@ -961,15 +834,13 @@ app.get("/site-traffic", authenticateToken, async (req, res) => {
   }
 });
 
-
 app.get("/api/user-links-traffic", authenticateToken, async (req, res) => {
   try {
     const user = await User.findById(req.userId);
     if (!user) return res.status(404).json({ success: false, message: "User not found" });
 
-    // Sort links by latest and get only the last 6
     const latestLinks = [...user.addLinks]
-      .sort((a, b) => b.clicks - a.clicks) // Sort by clicks descending
+      .sort((a, b) => b.clicks - a.clicks) 
       .slice(0, 6);
 
     res.json({ success: true, links: latestLinks });
@@ -979,21 +850,15 @@ app.get("/api/user-links-traffic", authenticateToken, async (req, res) => {
   }
 });
 
-
-
-
-
 app.put("/api/update-user", authenticateToken, async (req, res) => {
   try {
     const { firstName, lastName, email, password, confirmPassword } = req.body;
 
-    // Ensure the user exists
     const user = await User.findById(req.userId);
     if (!user) {
       return res.status(404).json({ success: false, message: "User not found" });
     }
 
-    // Check if email is being changed
     if (email && email !== user.email) {
       const existingUser = await User.findOne({ email });
       if (existingUser) {
@@ -1002,11 +867,9 @@ app.put("/api/update-user", authenticateToken, async (req, res) => {
       user.email = email;
     }
 
-    // Update name fields
     if (firstName) user.firstName = firstName;
     if (lastName) user.lastName = lastName;
 
-    // ✅ If password is changed, hash it and force logout
     let passwordChanged = false;
     if (password && confirmPassword) {
       if (password !== confirmPassword) {
@@ -1017,10 +880,8 @@ app.put("/api/update-user", authenticateToken, async (req, res) => {
       passwordChanged = true;
     }
 
-    // Save updated user details
     await user.save();
 
-    // If password was changed, force logout
     if (passwordChanged) {
       return res.status(200).json({ success: true, passwordChanged: true, message: "Password updated, please login again." });
     }
@@ -1032,6 +893,5 @@ app.put("/api/update-user", authenticateToken, async (req, res) => {
   }
 });
 
-// Start Server
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
